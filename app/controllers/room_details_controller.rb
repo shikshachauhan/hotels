@@ -1,33 +1,45 @@
 class RoomDetailsController < ApplicationController
+  # validate_inputs will validate input parameter for bulk update and return invalid response if invalid
   before_action :validate_inputs, only: :update_bulk
+  # load_hotel will load hotel object from database based on hotel_name parameter
   before_action :load_hotel, only: [:index, :update_bulk]
+  #load_room_detail will run in case if individial record update. lokks for :id parameter in request and fetches the record from DB
   before_action :load_room_detail, only: :update
+  #set_date_range parses start_date and end_date string from parameters and convert it to date objects used later in fetching date from DB
   before_action :set_date_range, only: :index
+  #set_dates_to_be_updated loads the exact dates on which update has to run
   before_action :set_dates_to_be_updated, only: :update_bulk
 
+  #This action will load all the Room Details with start_date and end_date filters
   def index
     Rails.logger.info("fetching room details from #{@start_date} to #{@end_date}")
+    # @hotel.room_type_ids loads all the room type ids associated with hotel
     @room_details = RoomDetail.where(room_type_id: @hotel.room_type_ids)
       .where("date >= ? and date <= ?", @start_date, @end_date).map(&:as_json)
     render json: { data: @room_details }, status: :ok
   end
 
+  #This action will update an individual record
   def update
     Rails.logger.info("Updating Room details id #{@room_detail.id} with #{get_parameters}")
-    if @room_detail.update(get_parameters)
+    #get_parameters method will return a hash of rows to be updated with their values
+    if @room_detail.update(get_parameters) #updates record in DB
       render json: { message: 'Update Successful' }, status: :ok
     else
       Rails.logger.info("Update faidel due to #{@room_detail.errors.full_messages}")
+      #This error response is sent in case of updation failure due to db level or application level validations
       render json: { message: @room_detail.errors.full_messages }, status: :unprocessable_entity
     end
   end
 
+  #This action will bulk update multiple records
   def update_bulk
     Rails.logger.info("Updating Room Type #{params[:room_type]} on dates #{@dates} with #{get_parameters}")
+    #This loads hotels with selected room type and dates and update them all.
     RoomDetail.where({
       room_type_id: @hotel.room_types.where(room_type: RoomType::TYPE[params[:room_type]]).map(&:id),
       date: @dates
-    }).update_all(get_parameters)
+    }).update_all(get_parameters) #update_all fires bulk update in DB
     render json: { message: 'Update Successful' }, status: :ok
   end
 
